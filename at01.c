@@ -54,7 +54,7 @@ int **criarMatriz(int linhas, int colunas) {
         matriz[i] = (int *)malloc(colunas * sizeof(int));
         for (int j = 0; j < colunas; j++) {
             // preenche com 0 ou 1 aleatoriamente (dois "tipos" de célula)
-            matriz[i][j] = GetRandomValue(0, 1);
+            matriz[i][j] = 0;
         }
     }
     return matriz;
@@ -72,6 +72,7 @@ void liberarMatriz(int **matriz, int linhas) {
 void desenharMatriz(int **matriz, int linhas, int colunas) {
     for (int i = 0; i < linhas; i++) {
         for (int j = 0; j < colunas; j++) {
+            Bola *b;
             Color cor = (matriz[i][j] == 1) ? (Color){20, 40, 70, 255}
                                              : (Color){15, 30, 55, 255};
             DrawRectangle(j * TAM_CELULA, i * TAM_CELULA,
@@ -102,14 +103,46 @@ Bola *criarBolas(int quantidade) {
     return bolas;
 }
 
-Bola *alterarBolas(Bola *bolas, int *quantidade) {
-    int nquant = *quantidade + 1;
-    Bola *balls = (Bola *) realloc (bolas, nquant * sizeof(Bola));
+Bola *adicionarBola(Bola *bolas, int *quantidade) {
+    int novaQtd = *quantidade + 1;
+    Bola *temp = (Bola *)realloc(bolas, novaQtd * sizeof(Bola));
+    
+    if (temp == NULL) {
+        return bolas; // Se realloc falhar, mantém o vetor antigo intacto
+    }
+
+    bolas = temp;
+    *quantidade = novaQtd;
+
+    // Inicializa a nova bola adicionada na última posição
+    Bola *b = &bolas[*quantidade - 1];
+    b->pos = (Vector2){ GetRandomValue(50, LARGURA_JANELA - 50),
+                         GetRandomValue(50, ALTURA_JANELA - 50) };
+    b->vel = (Vector2){ (float)GetRandomValue(-4, 4),
+                         (float)GetRandomValue(-4, 4) };
+    b->raio = (float)GetRandomValue(10, 25);
+    b->cor  = (Color){ GetRandomValue(100,255), GetRandomValue(100,255),
+                        GetRandomValue(100,255), 255 };
+
+    return bolas;
 }
 
+Bola *removerBola(Bola *bolas, int *quantidade) {
+    int novaQtd = *quantidade - 1;
+    Bola *temp = (Bola *)realloc(bolas, novaQtd * sizeof(Bola));
+
+    if(temp == NULL) {
+        return bolas;
+    }
+
+    bolas = temp;
+    *quantidade = novaQtd;
+
+    return bolas;
+}
 /* atualiza a posição de UMA bola: recebe um PONTEIRO para a struct,
  * então as alterações afetam diretamente o vetor original (sem cópia) */
-void atualizarBola(Bola *b) {
+void atualizarBola(Bola *b, int **matriz, int maxLinhas, int maxColunas) {
     b->pos.x += b->vel.x;
     b->pos.y += b->vel.y;
 
@@ -118,6 +151,13 @@ void atualizarBola(Bola *b) {
         b->vel.x *= -1;
     if (b->pos.y - b->raio < 0 || b->pos.y + b->raio > ALTURA_JANELA)
         b->vel.y *= -1;
+
+        int coluna = (int) b->pos.x / TAM_CELULA;
+        int linha =  (int) b->pos.y / TAM_CELULA;
+
+        if (linha >= 0 && linha < maxLinhas && coluna >= 0 && coluna < maxColunas) {
+        matriz[linha][coluna] = 1; // Marca como visitada
+    }
 }
 
 int main(void) {
@@ -126,6 +166,8 @@ int main(void) {
     InitWindow(LARGURA_JANELA, ALTURA_JANELA,
                "Ponteiros e Alocacao Dinamica - raylib");
     SetTargetFPS(60);
+    
+    Bola *b;
 
     int linhas   = ALTURA_JANELA / TAM_CELULA;
     int colunas  = LARGURA_JANELA / TAM_CELULA;
@@ -135,19 +177,24 @@ int main(void) {
     Bola *bolas = criarBolas(quantidadeBolas);      // vetor dinâmico
     while (!WindowShouldClose()) {
         if (IsKeyPressed(KEY_SPACE)) {
-            Bola *balls = alterarBolas(bolas,&quantidadeBolas);
+            bolas = adicionarBola(bolas,&quantidadeBolas);
+        }
+
+        if (IsKeyPressed(KEY_BACKSPACE)) {
+            bolas = removerBola(bolas,&quantidadeBolas);
         }
 
         // percorre o vetor usando aritmética de ponteiros:
         // (bolas + i) aponta para o i-ésimo elemento do vetor
         for (int i = 0; i < quantidadeBolas; i++) {
-            atualizarBola(bolas + i);
+            atualizarBola(bolas + i,grade,linhas,colunas);
         }
 
         BeginDrawing();
             ClearBackground(RAYWHITE);
 
             desenharMatriz(grade, linhas, colunas);
+            
 
             for (int i = 0; i < quantidadeBolas; i++) {
                 DrawCircleV(bolas[i].pos, bolas[i].raio, bolas[i].cor);
